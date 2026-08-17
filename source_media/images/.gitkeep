@@ -1,0 +1,6 @@
+Drop your own title folders directly in here -- e.g. ALBANY/IMG_0001.jpg,
+or NEW_YORK_CITY/Season_1/IMG_0001.jpg for a multi-season show. See
+../README.md for the full folder convention.
+
+This file only exists so git tracks this otherwise-empty folder; it's
+ignored by the app itself (hidden files never count as content).

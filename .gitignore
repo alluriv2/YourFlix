@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# Media library: images/ stays a SCAFFOLD -- an empty folder (held in
+# place by a .gitkeep placeholder) so a fresh clone has somewhere to drop
+# personal photos/videos, which never belong in version control (see
+# AlbumLoader.resolveSourceRoot()). music/ is NOT a scaffold -- the
+# actual bundled tracks under music/hero/ and music/slideshow/ are
+# tracked for real, so the app has something to play right out of a
+# clone. titles.json is a generated output, rewritten fresh on every
+# launch, never meant to be committed. Per-title *.info.json / *.cover.*
+# companion files are person-specific customization, excluded for the
+# same reason.
+source_media/images/*
+!source_media/images/.gitkeep
+source_media/titles.json
+source_media/*.info.json
+source_media/*.cover.*
