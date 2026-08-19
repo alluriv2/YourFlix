@@ -9,6 +9,7 @@ YourFlix transforms ordinary folders into a cinematic library with a hero banner
 3. Open `YourFlix.app`.
 That’s it. YourFlix automatically finds the media folder beside the app and builds your library.
 Because the app is currently unsigned, macOS may block it the first time. Control-click `YourFlix.app`, choose **Open**, and confirm. After that, it opens normally.
+If you've done that and YourFlix still isn't finding your music or your library, open Terminal and run `xattr -cr /path/to/YourFlix.app` (drag the app into the Terminal window to fill in the path). This clears a quarantine flag that can survive even after approving the app once, and it's the fix if things still aren't showing up.
 ## Your folders become your library
 Create a folder for each collection you want to see in YourFlix:
 ```text
