@@ -11,6 +11,12 @@ DerivedData/
 *.hmap
 *.ipa
 
+# The shared scheme's LaunchAction sets YOURFLIX_MEDIA_PATH to this dev
+# machine's own absolute path (see AlbumLoader.resolveSourceRoot()'s
+# header) so Cmd+R finds the real library instead of the repo's own
+# scaffold source_media/ -- local-only on purpose, never committed.
+YourFlix.xcodeproj/xcshareddata/xcschemes/YourFlix.xcscheme
+
 # Swift Package Manager
 .swiftpm/
 .build/
