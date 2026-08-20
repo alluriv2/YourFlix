@@ -309,58 +309,69 @@ struct PlayerView: View {
 
     /// The speedometer button's popover: a single thin horizontal line
     /// with one dot per PlayerViewModel.availableSpeeds choice, evenly
-    /// spaced and sitting directly ON the line -- every dot is the SAME
-    /// size, only the CURRENT speed's dot (and its label underneath) is
-    /// colored/bold to mark the selection. The line and the dot row
-    /// share the exact same fixed height (`speedDotDiameter`) so the
-    /// line passes right through each dot's center rather than floating
-    /// above/below them; the speed labels are a separate row underneath,
-    /// evenly distributed across the same width so each lines up under
-    /// its dot. Tapping any dot applies that speed immediately to
-    /// whatever's currently on screen -- see
-    /// PlayerViewModel.setPlaybackSpeed(_:).
+    /// spaced along it and sitting directly ON the line -- every dot is
+    /// the SAME size, only the CURRENT speed's dot (and its label
+    /// underneath) is colored/bold to mark the selection. The FIRST and
+    /// LAST dots sit exactly at the line's two ends (not inset from
+    /// them) -- each dot's x position is computed explicitly as a
+    /// fraction of the line's width (`index / (count - 1)`) via
+    /// GeometryReader, with both the dot and its label positioned off
+    /// that same x, rather than relying on SwiftUI's HStack spacing
+    /// (which centers items within equal-width slots and would leave
+    /// the outer two dots inset from the line's actual ends). Tapping
+    /// any dot applies that speed immediately to whatever's currently on
+    /// screen -- see PlayerViewModel.setPlaybackSpeed(_:).
     private var speedPicker: some View {
         VStack(spacing: 10) {
             Text("Playback Speed")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.white.opacity(0.7))
 
-            ZStack {
-                Rectangle()
-                    .fill(Color.white.opacity(0.25))
-                    .frame(height: 1.5)
-                    .padding(.horizontal, 17)
+            GeometryReader { geo in
+                let speeds = PlayerViewModel.availableSpeeds
+                let count = speeds.count
+                let width = geo.size.width
+                let dotY: CGFloat = speedDotDiameter / 2
 
-                HStack(spacing: 0) {
-                    ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
+                ZStack {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.25))
+                        .frame(width: width, height: 1.5)
+                        .position(x: width / 2, y: dotY)
+
+                    ForEach(Array(speeds.enumerated()), id: \.offset) { index, speed in
                         let isSelected = speed == viewModel.playbackSpeed
-                        Circle()
-                            .fill(isSelected ? Theme.red : Color.white.opacity(0.5))
-                            .frame(width: speedDotDiameter, height: speedDotDiameter)
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                registerActivity()
-                                viewModel.setPlaybackSpeed(speed)
-                            }
+                        let x = count > 1 ? width * CGFloat(index) / CGFloat(count - 1) : width / 2
+
+                        ZStack {
+                            Circle()
+                                .fill(isSelected ? Theme.red : Color.white.opacity(0.5))
+                                .frame(width: speedDotDiameter, height: speedDotDiameter)
+                        }
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                        .position(x: x, y: dotY)
+                        .onTapGesture {
+                            registerActivity()
+                            viewModel.setPlaybackSpeed(speed)
+                        }
+
+                        Text(speedLabel(for: speed))
+                            .font(.system(size: 11, weight: isSelected ? .bold : .regular))
+                            .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                            .position(x: x, y: speedLabelY)
                     }
                 }
             }
-            .frame(width: 210, height: speedDotDiameter)
-
-            HStack(spacing: 0) {
-                ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
-                    let isSelected = speed == viewModel.playbackSpeed
-                    Text(speedLabel(for: speed))
-                        .font(.system(size: 11, weight: isSelected ? .bold : .regular))
-                        .foregroundColor(isSelected ? .white : .white.opacity(0.6))
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(width: 210)
+            .frame(width: 210, height: 34)
         }
         .padding(18)
     }
+
+    /// Vertical center for each speed label, relative to the same
+    /// GeometryReader as the dots -- `speedDotDiameter / 2` (the dots'
+    /// own y) plus a small gap plus roughly half a line of 11pt text.
+    private var speedLabelY: CGFloat { speedDotDiameter / 2 + 16 }
 
     private let speedDotDiameter: CGFloat = 10
 
