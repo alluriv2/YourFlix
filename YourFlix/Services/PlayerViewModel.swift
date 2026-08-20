@@ -49,8 +49,15 @@ import SwiftUI
 /// carries most of the visual variety anyway (see KenBurnsImageView).
 @MainActor
 final class PlayerViewModel: NSObject, ObservableObject {
-    static let photoDuration: TimeInterval = 5.0
+    /// How long a photo shows at 1x speed -- see `currentPhotoDuration`
+    /// below for how `playbackSpeed` scales this down.
+    private static let basePhotoDuration: TimeInterval = 5.0
     private static let photoTickInterval: TimeInterval = 0.05
+    /// The steps `cyclePlaybackSpeed()` cycles through, in order --
+    /// deliberately NOT evenly spaced (1.75x -> 3x is a bigger jump than
+    /// the others) per an explicit request, rather than a uniform
+    /// 1/1.25/1.5/1.75/2 ladder.
+    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 1.75, 3.0]
     /// How long the item-to-item crossfade animates for. Applied via an
     /// explicit withAnimation(...) around each currentIndex change below,
     /// rather than a `.animation(_:value:)` modifier in PlayerView --
@@ -65,6 +72,15 @@ final class PlayerViewModel: NSObject, ObservableObject {
     @Published private(set) var isFinished: Bool = false
     @Published private(set) var videoPlayer: AVPlayer?
     @Published private(set) var isPaused: Bool = false
+    /// Applies live to whatever's on screen right now, not just future
+    /// items -- a video's `rate` is reassigned immediately (see
+    /// cyclePlaybackSpeed()), and a photo's remaining time recomputes on
+    /// its very next tick since tickPhoto() reads `currentPhotoDuration`
+    /// fresh every 0.05s rather than latching a duration at the start of
+    /// the item. The background song is deliberately NOT affected --
+    /// speeding up audio shifts its pitch, and there was no ask to speed
+    /// up the music, only the photos/videos themselves.
+    @Published private(set) var playbackSpeed: Double = 1.0
     /// 0...1 progress through the CURRENT item only -- feeds
     /// KenBurnsImageView's zoom/pan. NOT what the slider shows.
     @Published private(set) var itemAnimationProgress: Double = 0
@@ -192,8 +208,27 @@ final class PlayerViewModel: NSObject, ObservableObject {
             videoPlayer?.pause()
             songPlayer?.pause()
         } else {
-            videoPlayer?.play()
+            // Resuming via `.play()` would silently reset rate to 1x,
+            // undoing whatever speed was selected -- setting `rate`
+            // directly both resumes playback AND keeps the chosen speed.
+            videoPlayer?.rate = Float(playbackSpeed)
             songPlayer?.play()
+        }
+    }
+
+    /// Steps to the next speed in `availableSpeeds`, wrapping back to the
+    /// first after the last. Applies immediately: a playing video's
+    /// `rate` is reassigned right here (paused video picks up the new
+    /// speed on the next `togglePause()` resume, same as any other
+    /// resume), and a photo's own tick loop picks it up on its very next
+    /// tick -- see `currentPhotoDuration`/`tickPhoto()`. Deliberately
+    /// leaves `songPlayer` untouched either way.
+    func cyclePlaybackSpeed() {
+        let speeds = Self.availableSpeeds
+        let currentIndex = speeds.firstIndex(of: playbackSpeed) ?? 0
+        playbackSpeed = speeds[(currentIndex + 1) % speeds.count]
+        if !isPaused {
+            videoPlayer?.rate = Float(playbackSpeed)
         }
     }
 
@@ -320,7 +355,11 @@ final class PlayerViewModel: NSObject, ObservableObject {
             let player = AVPlayer(url: item.url)
             player.isMuted = true
             videoPlayer = player
-            player.play()
+            // Setting `rate` directly (instead of `.play()`, which always
+            // starts at 1x) both starts playback AND applies whatever
+            // speed is currently selected -- videos being muted is what
+            // makes this safe with no pitch-correction concerns.
+            player.rate = Float(playbackSpeed)
             endObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player.currentItem,
@@ -340,12 +379,21 @@ final class PlayerViewModel: NSObject, ObservableObject {
         }
     }
 
+    /// How long the CURRENT photo shows for, at whatever `playbackSpeed`
+    /// is right now -- recomputed on every call rather than latched once
+    /// per item, so a mid-photo speed change (see cyclePlaybackSpeed())
+    /// takes effect on the very next tick instead of waiting for the next
+    /// item to start.
+    private var currentPhotoDuration: TimeInterval {
+        Self.basePhotoDuration / playbackSpeed
+    }
+
     private func tickPhoto() {
         guard !isPaused else { return }
         photoElapsed += Self.photoTickInterval
-        itemAnimationProgress = min(1, photoElapsed / Self.photoDuration)
+        itemAnimationProgress = min(1, photoElapsed / currentPhotoDuration)
         updateOverallProgress()
-        if photoElapsed >= Self.photoDuration {
+        if photoElapsed >= currentPhotoDuration {
             advance()
         }
     }

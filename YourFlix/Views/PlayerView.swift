@@ -277,9 +277,43 @@ struct PlayerView: View {
                 transportButton(viewModel.isPaused ? "play.fill" : "pause.fill") { viewModel.togglePause() }
                 transportButton("forward.fill") { viewModel.skip(byItems: 5) }
                 transportButton("arrow.counterclockwise") { restartWithTitleCard() }
+                speedButton
                 ratingButtons
             }
         }
+    }
+
+    /// Cycles through PlayerViewModel.availableSpeeds (1x/1.25x/1.5x/
+    /// 1.75x/3x) on tap, applied live to whatever's currently on screen --
+    /// see PlayerViewModel.cyclePlaybackSpeed(). A capsule rather than
+    /// transportButton()'s fixed-size circle, since the label's width
+    /// varies ("1x" vs "1.75x") where every other button here is a
+    /// single, constant-width SF Symbol.
+    private var speedButton: some View {
+        Button {
+            registerActivity()
+            viewModel.cyclePlaybackSpeed()
+        } label: {
+            Text(speedLabel(for: viewModel.playbackSpeed))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(minWidth: 38, minHeight: 38)
+                .padding(.horizontal, 6)
+                .background(Color.white.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// "1x"/"3x" for whole numbers, "1.25x"/"1.5x"/"1.75x" otherwise --
+    /// every value in PlayerViewModel.availableSpeeds happens to be an
+    /// exact binary fraction (quarters), so plain string interpolation
+    /// never produces floating-point noise here.
+    private func speedLabel(for speed: Double) -> String {
+        if speed == speed.rounded() {
+            return "\(Int(speed))x"
+        }
+        return "\(speed)x"
     }
 
     private func transportButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
