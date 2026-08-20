@@ -309,9 +309,14 @@ struct PlayerView: View {
 
     /// The speedometer button's popover: a single thin horizontal line
     /// with one dot per PlayerViewModel.availableSpeeds choice, evenly
-    /// spaced along it -- every dot is the SAME size, only the CURRENT
-    /// speed's dot (and its label underneath) is colored/bold to mark
-    /// the selection. Tapping any dot applies that speed immediately to
+    /// spaced and sitting directly ON the line -- every dot is the SAME
+    /// size, only the CURRENT speed's dot (and its label underneath) is
+    /// colored/bold to mark the selection. The line and the dot row
+    /// share the exact same fixed height (`speedDotDiameter`) so the
+    /// line passes right through each dot's center rather than floating
+    /// above/below them; the speed labels are a separate row underneath,
+    /// evenly distributed across the same width so each lines up under
+    /// its dot. Tapping any dot applies that speed immediately to
     /// whatever's currently on screen -- see
     /// PlayerViewModel.setPlaybackSpeed(_:).
     private var speedPicker: some View {
@@ -329,21 +334,27 @@ struct PlayerView: View {
                 HStack(spacing: 0) {
                     ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
                         let isSelected = speed == viewModel.playbackSpeed
-                        VStack(spacing: 6) {
-                            Circle()
-                                .fill(isSelected ? Theme.red : Color.white.opacity(0.5))
-                                .frame(width: speedDotDiameter, height: speedDotDiameter)
-                            Text(speedLabel(for: speed))
-                                .font(.system(size: 11, weight: isSelected ? .bold : .regular))
-                                .foregroundColor(isSelected ? .white : .white.opacity(0.6))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            registerActivity()
-                            viewModel.setPlaybackSpeed(speed)
-                        }
+                        Circle()
+                            .fill(isSelected ? Theme.red : Color.white.opacity(0.5))
+                            .frame(width: speedDotDiameter, height: speedDotDiameter)
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                registerActivity()
+                                viewModel.setPlaybackSpeed(speed)
+                            }
                     }
+                }
+            }
+            .frame(width: 210, height: speedDotDiameter)
+
+            HStack(spacing: 0) {
+                ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
+                    let isSelected = speed == viewModel.playbackSpeed
+                    Text(speedLabel(for: speed))
+                        .font(.system(size: 11, weight: isSelected ? .bold : .regular))
+                        .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                        .frame(maxWidth: .infinity)
                 }
             }
             .frame(width: 210)
