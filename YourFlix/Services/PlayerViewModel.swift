@@ -54,7 +54,7 @@ final class PlayerViewModel: NSObject, ObservableObject {
     private static let basePhotoDuration: TimeInterval = 5.0
     private static let photoTickInterval: TimeInterval = 0.05
     /// The choices offered by the speed control in PlayerView's control bar.
-    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0]
+    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 1.75, 2.0]
     /// How long the item-to-item crossfade animates for. Applied via an
     /// explicit withAnimation(...) around each currentIndex change below,
     /// rather than a `.animation(_:value:)` modifier in PlayerView --
