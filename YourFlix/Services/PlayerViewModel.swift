@@ -53,11 +53,8 @@ final class PlayerViewModel: NSObject, ObservableObject {
     /// below for how `playbackSpeed` scales this down.
     private static let basePhotoDuration: TimeInterval = 5.0
     private static let photoTickInterval: TimeInterval = 0.05
-    /// The choices offered by the speed menu in PlayerView's control bar
-    /// -- deliberately NOT evenly spaced (2x -> 3x is a bigger jump than
-    /// the others) per an explicit request, rather than a uniform
-    /// 1/1.25/1.5/1.75/2 ladder.
-    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0, 3.0]
+    /// The choices offered by the speed control in PlayerView's control bar.
+    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0]
     /// How long the item-to-item crossfade animates for. Applied via an
     /// explicit withAnimation(...) around each currentIndex change below,
     /// rather than a `.animation(_:value:)` modifier in PlayerView --
@@ -111,6 +108,21 @@ final class PlayerViewModel: NSObject, ObservableObject {
     private var fadeTimer: Timer?
     private var endObserver: NSObjectProtocol?
     private var timeObserver: Any?
+    /// Whether the CURRENT video is long enough to actually speed up --
+    /// short videos (<= MediaScanner.shortVideoMaxDuration, e.g. Live
+    /// Photos) always play at their normal 1x regardless of the selected
+    /// `playbackSpeed`, since speeding up a ~1-2s clip makes it barely
+    /// perceptible. A video's real duration isn't known synchronously
+    /// when it starts (AVPlayer loads it asynchronously), so this starts
+    /// false/undetermined and gets set for real the first time the
+    /// periodic time observer below sees a valid duration -- see
+    /// `hasAppliedInitialVideoRate` and `applyVideoRateIfNeeded()`.
+    private var currentVideoQualifiesForSpeedUp = false
+    /// Guards `applyVideoRateIfNeeded()`'s duration-based decision so it
+    /// only runs ONCE per video (the first periodic-time-observer tick
+    /// that reports a valid duration), rather than re-deciding on every
+    /// tick for the rest of that video's playback.
+    private var hasAppliedInitialVideoRate = false
 
     init(album: Album) {
         self.album = album
@@ -210,8 +222,10 @@ final class PlayerViewModel: NSObject, ObservableObject {
         } else {
             // Resuming via `.play()` would silently reset rate to 1x,
             // undoing whatever speed was selected -- setting `rate`
-            // directly both resumes playback AND keeps the chosen speed.
-            videoPlayer?.rate = Float(playbackSpeed)
+            // directly both resumes playback AND keeps the chosen speed
+            // (or 1x, if this video is short enough to be exempt -- see
+            // applyVideoRateIfNeeded()).
+            applyVideoRateIfNeeded()
             songPlayer?.play()
         }
     }
@@ -228,9 +242,18 @@ final class PlayerViewModel: NSObject, ObservableObject {
     /// up, never the music.
     func setPlaybackSpeed(_ speed: Double) {
         playbackSpeed = speed
-        if !isPaused {
-            videoPlayer?.rate = Float(playbackSpeed)
-        }
+        applyVideoRateIfNeeded()
+    }
+
+    /// Applies `playbackSpeed` to `videoPlayer` -- but only when the
+    /// CURRENT video has been determined to be long enough to qualify
+    /// (see `currentVideoQualifiesForSpeedUp`'s doc comment); a short
+    /// video always gets 1x here instead, regardless of the selected
+    /// speed. A no-op while paused, same as before -- a paused video
+    /// picks up the right rate on its next `togglePause()` resume.
+    private func applyVideoRateIfNeeded() {
+        guard !isPaused, videoPlayer != nil else { return }
+        videoPlayer?.rate = currentVideoQualifiesForSpeedUp ? Float(playbackSpeed) : 1.0
     }
 
     /// Skips +-`delta` ITEMS in the sequence (a photo or a video counts
@@ -356,11 +379,14 @@ final class PlayerViewModel: NSObject, ObservableObject {
             let player = AVPlayer(url: item.url)
             player.isMuted = true
             videoPlayer = player
-            // Setting `rate` directly (instead of `.play()`, which always
-            // starts at 1x) both starts playback AND applies whatever
-            // speed is currently selected -- videos being muted is what
-            // makes this safe with no pitch-correction concerns.
-            player.rate = Float(playbackSpeed)
+            // This video's real duration isn't known synchronously yet --
+            // start at a plain 1x via `.play()` and let the periodic time
+            // observer below apply the real rate (chosen speed, or 1x if
+            // this turns out to be a short video) the moment its duration
+            // becomes available, via applyVideoRateIfNeeded().
+            currentVideoQualifiesForSpeedUp = false
+            hasAppliedInitialVideoRate = false
+            player.play()
             endObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player.currentItem,
@@ -374,6 +400,11 @@ final class PlayerViewModel: NSObject, ObservableObject {
                       duration.isValid, !duration.isIndefinite else { return }
                 let totalSeconds = CMTimeGetSeconds(duration)
                 guard totalSeconds > 0 else { return }
+                if !self.hasAppliedInitialVideoRate {
+                    self.hasAppliedInitialVideoRate = true
+                    self.currentVideoQualifiesForSpeedUp = totalSeconds > MediaScanner.shortVideoMaxDuration
+                    self.applyVideoRateIfNeeded()
+                }
                 self.itemAnimationProgress = min(1, max(0, CMTimeGetSeconds(time) / totalSeconds))
                 self.updateOverallProgress()
             }

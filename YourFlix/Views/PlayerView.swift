@@ -54,6 +54,9 @@ struct PlayerView: View {
     @State private var keyMonitor: Any?
     @State private var showingTitleCard = true
     @State private var titleCardWorkItem: DispatchWorkItem?
+    /// Drives the speedometer button's popover -- see `speedButton`/
+    /// `speedPicker` below.
+    @State private var showingSpeedPicker = false
     /// Flips permanently to true the first time a restart happens --
     /// distinguishes "genuinely first-ever open" (music starts right
     /// away, see onAppear below) from every title card after that
@@ -283,37 +286,74 @@ struct PlayerView: View {
         }
     }
 
-    /// Tapping shows a menu listing every PlayerViewModel.availableSpeeds
-    /// choice (1x/1.25x/1.5x/2x/3x); picking one applies live to whatever
-    /// is currently on screen -- see PlayerViewModel.setPlaybackSpeed(_:).
-    /// The label itself is a capsule (not transportButton()'s fixed-size
-    /// circle), since its width varies ("1x" vs "1.25x") where every
-    /// other button here is a single, constant-width SF Symbol.
-    /// `.menuStyle(.borderlessButton)` strips macOS's default menu-button
-    /// chrome so the label reads like this row's other custom buttons
-    /// instead of a system dropdown.
+    /// A plain speedometer icon, same fixed-circle shape as the other
+    /// transport buttons -- tapping opens `speedPicker` in a popover
+    /// rather than a dropdown menu.
     private var speedButton: some View {
-        Menu {
-            ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
-                Button(speedLabel(for: speed)) {
-                    registerActivity()
-                    viewModel.setPlaybackSpeed(speed)
-                }
-            }
+        Button {
+            registerActivity()
+            showingSpeedPicker.toggle()
         } label: {
-            Text(speedLabel(for: viewModel.playbackSpeed))
-                .font(.system(size: 13, weight: .semibold))
+            Image(systemName: "speedometer")
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(minWidth: 38, minHeight: 38)
-                .padding(.horizontal, 6)
+                .frame(width: 38, height: 38)
                 .background(Color.white.opacity(0.12))
-                .clipShape(Capsule())
+                .clipShape(Circle())
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingSpeedPicker, arrowEdge: .top) {
+            speedPicker
+        }
     }
 
-    /// "1x"/"2x"/"3x" for whole numbers, "1.25x"/"1.5x" otherwise -- every
+    /// The speedometer button's popover: a single thin horizontal line
+    /// with one dot per PlayerViewModel.availableSpeeds choice, evenly
+    /// spaced along it -- every dot is the SAME size, only the CURRENT
+    /// speed's dot (and its label underneath) is colored/bold to mark
+    /// the selection. Tapping any dot applies that speed immediately to
+    /// whatever's currently on screen -- see
+    /// PlayerViewModel.setPlaybackSpeed(_:).
+    private var speedPicker: some View {
+        VStack(spacing: 10) {
+            Text("Playback Speed")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white.opacity(0.7))
+
+            ZStack {
+                Rectangle()
+                    .fill(Color.white.opacity(0.25))
+                    .frame(height: 1.5)
+                    .padding(.horizontal, 17)
+
+                HStack(spacing: 0) {
+                    ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
+                        let isSelected = speed == viewModel.playbackSpeed
+                        VStack(spacing: 6) {
+                            Circle()
+                                .fill(isSelected ? Theme.red : Color.white.opacity(0.5))
+                                .frame(width: speedDotDiameter, height: speedDotDiameter)
+                            Text(speedLabel(for: speed))
+                                .font(.system(size: 11, weight: isSelected ? .bold : .regular))
+                                .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            registerActivity()
+                            viewModel.setPlaybackSpeed(speed)
+                        }
+                    }
+                }
+            }
+            .frame(width: 210)
+        }
+        .padding(18)
+    }
+
+    private let speedDotDiameter: CGFloat = 10
+
+    /// "1x"/"2x" for whole numbers, "1.25x"/"1.5x" otherwise -- every
     /// value in PlayerViewModel.availableSpeeds happens to be an exact
     /// binary fraction (quarters), so plain string interpolation never
     /// produces floating-point noise here.
