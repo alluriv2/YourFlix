@@ -283,16 +283,23 @@ struct PlayerView: View {
         }
     }
 
-    /// Cycles through PlayerViewModel.availableSpeeds (1x/1.25x/1.5x/
-    /// 1.75x/3x) on tap, applied live to whatever's currently on screen --
-    /// see PlayerViewModel.cyclePlaybackSpeed(). A capsule rather than
-    /// transportButton()'s fixed-size circle, since the label's width
-    /// varies ("1x" vs "1.75x") where every other button here is a
-    /// single, constant-width SF Symbol.
+    /// Tapping shows a menu listing every PlayerViewModel.availableSpeeds
+    /// choice (1x/1.25x/1.5x/2x/3x); picking one applies live to whatever
+    /// is currently on screen -- see PlayerViewModel.setPlaybackSpeed(_:).
+    /// The label itself is a capsule (not transportButton()'s fixed-size
+    /// circle), since its width varies ("1x" vs "1.25x") where every
+    /// other button here is a single, constant-width SF Symbol.
+    /// `.menuStyle(.borderlessButton)` strips macOS's default menu-button
+    /// chrome so the label reads like this row's other custom buttons
+    /// instead of a system dropdown.
     private var speedButton: some View {
-        Button {
-            registerActivity()
-            viewModel.cyclePlaybackSpeed()
+        Menu {
+            ForEach(PlayerViewModel.availableSpeeds, id: \.self) { speed in
+                Button(speedLabel(for: speed)) {
+                    registerActivity()
+                    viewModel.setPlaybackSpeed(speed)
+                }
+            }
         } label: {
             Text(speedLabel(for: viewModel.playbackSpeed))
                 .font(.system(size: 13, weight: .semibold))
@@ -302,13 +309,14 @@ struct PlayerView: View {
                 .background(Color.white.opacity(0.12))
                 .clipShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
-    /// "1x"/"3x" for whole numbers, "1.25x"/"1.5x"/"1.75x" otherwise --
-    /// every value in PlayerViewModel.availableSpeeds happens to be an
-    /// exact binary fraction (quarters), so plain string interpolation
-    /// never produces floating-point noise here.
+    /// "1x"/"2x"/"3x" for whole numbers, "1.25x"/"1.5x" otherwise -- every
+    /// value in PlayerViewModel.availableSpeeds happens to be an exact
+    /// binary fraction (quarters), so plain string interpolation never
+    /// produces floating-point noise here.
     private func speedLabel(for speed: Double) -> String {
         if speed == speed.rounded() {
             return "\(Int(speed))x"

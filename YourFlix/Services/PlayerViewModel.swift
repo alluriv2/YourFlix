@@ -53,11 +53,11 @@ final class PlayerViewModel: NSObject, ObservableObject {
     /// below for how `playbackSpeed` scales this down.
     private static let basePhotoDuration: TimeInterval = 5.0
     private static let photoTickInterval: TimeInterval = 0.05
-    /// The steps `cyclePlaybackSpeed()` cycles through, in order --
-    /// deliberately NOT evenly spaced (1.75x -> 3x is a bigger jump than
+    /// The choices offered by the speed menu in PlayerView's control bar
+    /// -- deliberately NOT evenly spaced (2x -> 3x is a bigger jump than
     /// the others) per an explicit request, rather than a uniform
     /// 1/1.25/1.5/1.75/2 ladder.
-    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 1.75, 3.0]
+    static let availableSpeeds: [Double] = [1.0, 1.25, 1.5, 2.0, 3.0]
     /// How long the item-to-item crossfade animates for. Applied via an
     /// explicit withAnimation(...) around each currentIndex change below,
     /// rather than a `.animation(_:value:)` modifier in PlayerView --
@@ -74,7 +74,7 @@ final class PlayerViewModel: NSObject, ObservableObject {
     @Published private(set) var isPaused: Bool = false
     /// Applies live to whatever's on screen right now, not just future
     /// items -- a video's `rate` is reassigned immediately (see
-    /// cyclePlaybackSpeed()), and a photo's remaining time recomputes on
+    /// setPlaybackSpeed(_:)), and a photo's remaining time recomputes on
     /// its very next tick since tickPhoto() reads `currentPhotoDuration`
     /// fresh every 0.05s rather than latching a duration at the start of
     /// the item. The background song is deliberately NOT affected --
@@ -216,17 +216,18 @@ final class PlayerViewModel: NSObject, ObservableObject {
         }
     }
 
-    /// Steps to the next speed in `availableSpeeds`, wrapping back to the
-    /// first after the last. Applies immediately: a playing video's
-    /// `rate` is reassigned right here (paused video picks up the new
-    /// speed on the next `togglePause()` resume, same as any other
-    /// resume), and a photo's own tick loop picks it up on its very next
-    /// tick -- see `currentPhotoDuration`/`tickPhoto()`. Deliberately
-    /// leaves `songPlayer` untouched either way.
-    func cyclePlaybackSpeed() {
-        let speeds = Self.availableSpeeds
-        let currentIndex = speeds.firstIndex(of: playbackSpeed) ?? 0
-        playbackSpeed = speeds[(currentIndex + 1) % speeds.count]
+    /// Sets playback speed directly to one of `availableSpeeds` -- called
+    /// from the menu PlayerView's speed button opens, where the person
+    /// picks a specific speed rather than stepping through them one at a
+    /// time. Applies immediately: a playing video's `rate` is reassigned
+    /// right here (a paused video picks up the new speed on the next
+    /// `togglePause()` resume, same as any other resume), and a photo's
+    /// own tick loop picks it up on its very next tick -- see
+    /// `currentPhotoDuration`/`tickPhoto()`. Deliberately leaves
+    /// `songPlayer` untouched either way -- only the photos/videos speed
+    /// up, never the music.
+    func setPlaybackSpeed(_ speed: Double) {
+        playbackSpeed = speed
         if !isPaused {
             videoPlayer?.rate = Float(playbackSpeed)
         }
